@@ -38,25 +38,25 @@ start() ->
     application:ensure_all_started(game_server, permanent).
 
 %%====================================================================
--spec register(NickName :: binary()) ->  map() | {error, Reason} when Reason :: internal | already_exist.
+-spec register(NickName :: binary()) ->  map().
 register(NickName) ->
     case db_get_user_by_nickname(NickName) of
         {ok, _} ->
             {error, already_exist};
         {error, Reason} ->
             ?LOG_ERROR("Cannot find user with reason~p", [Reason]),
-            {error, internal};
+            #{<<"status">> => <<"error">>, <<"msg">> => <<"Internal error">>};
         {error, notfound} ->
             case db_save_new_user_info(NickName, ?DEFAULT_COINS, ?DEFAULT_STARS, ?DEFAULT_LEVEL) of
                 {error, Reason} ->
                     ?LOG_ERROR("Cannot register new user with reason:~p", [Reason]),
-                    {error, internal};
+                    #{<<"status">> => <<"error">>, <<"msg">> => <<"Internal error">>};
                 Id ->
                     #{<<"uid">> => integer_to_binary(Id)}
             end
     end.
 
--spec authorize(Uid :: binary()) ->  map() | {error, Reason} when Reason :: internal.
+-spec authorize(Uid :: binary()) ->  map().
 authorize(Uid) ->
     Id = binary_to_integer(Uid),
     case db_get_user_info(Id) of
@@ -73,53 +73,53 @@ authorize(Uid) ->
             #{<<"auth_token">> => SessionId};
         {error, Reason} ->
             ?LOG_ERROR("Cannot get user info with reason:~p", [Reason]),
-            {error, internal}
+            #{<<"status">> => <<"error">>, <<"msg">> => <<"Internal error">>}
     end.
 
--spec get_profile(AuthToken::binary()) -> map() | {error, notfound}.
+-spec get_profile(AuthToken::binary()) -> map().
 get_profile(AuthToken) ->
     case game_server_cache:get_token(AuthToken) of
         undefined ->
             ?LOG_ERROR("Cannot get profile for chosen user", []),
-            {error, notfound};
+            #{<<"status">> => <<"error">>, <<"msg">> => <<"Session expired">>};
         Profile ->
             Profile
     end.
 
--spec win_level(AuthToken::binary()) -> ok |  {error, Reason} when Reason::term().
+-spec win_level(AuthToken::binary()) -> map().
 win_level(AuthToken) ->
     case game_server_cache:get_token(AuthToken) of
         undefined ->
             ?LOG_ERROR("Cannot find profile", []),
-            {error, notfound};
+            #{<<"status">> => <<"error">>, <<"msg">> => <<"Session expired">>};
         #{<<"id">> := Id} ->
             case db_update_level(Id) of
                 ok ->
-                    ok;
+                    #{<<"status">> => <<"ok">>};
                 {error, Reason} ->
                     ?LOG_ERROR("Cannot update level for chosen user with reason~p", [Reason]),
-                    {error, internal}
+                    #{<<"status">> => <<"error">>, <<"msg">> => <<"Internal error">>}
             end
     end.
 
--spec buy_stars(AuthToken::binary(), StarsCount::integer()) -> map() |  {error, Reason} when Reason::term().
+-spec buy_stars(AuthToken::binary(), StarsCount::integer()) -> map().
 buy_stars(AuthToken, StarsCount) ->
     case game_server_cache:get_token(AuthToken) of
         undefined ->
             ?LOG_ERROR("Cannot find profile", []),
-            {error, notfound};
+            #{<<"status">> => <<"error">>, <<"msg">> => <<"Session expired">>};
         #{<<"id">> := Id} ->
             NeededCoins = StarsCount * ?PRICE_FOR_1,
             case db_update_stars(Id, NeededCoins) of
                 ok ->
-                    ok;
+                    #{<<"status">> => <<"ok">>};
                 {error, Reason} ->
                     ?LOG_ERROR("Cannot update stars for chosen user with reason~p", [Reason]),
-                    {error, internal}
+                    #{<<"status">> => <<"error">>, <<"msg">> => <<"Internal error">>}
             end
     end.
 
--spec gdpr_erase_profile(AuthToken::binary()) -> map() |  {error, Reason} when Reason::term().
+-spec gdpr_erase_profile(AuthToken::binary()) -> map().
 gdpr_erase_profile(AuthToken) ->
     case game_server_cache:get_token(AuthToken) of
         undefined ->
@@ -130,7 +130,7 @@ gdpr_erase_profile(AuthToken) ->
                     #{<<"status">> => <<"ok">>};
                 {error, Reason} ->
                     ?LOG_ERROR("Cannot delete profile for chosen user with reason~p", [Reason]),
-                    {error, internal}
+                    #{<<"status">> => <<"error">>, <<"msg">> => <<"Internal error">>}
             end
     end.
 
