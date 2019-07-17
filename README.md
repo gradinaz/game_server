@@ -1,4 +1,4 @@
-uniq_int_gen
+game_server
 =====
 
 An OTP application
