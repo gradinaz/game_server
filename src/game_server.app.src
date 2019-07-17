@@ -1,0 +1,15 @@
+{application, game_server,
+ [{description, "Game server"},
+  {vsn, "0.1.0"},
+  {registered, []},
+  {mod, { game_server_app, []}},
+  {modules, []},
+  {applications,
+   [
+    dbproxy,
+    cowboy,
+    eredis,
+    jsx
+   ]},
+  {env,[]}
+ ]}.
