@@ -1,0 +1,10 @@
+-boot start_sasl
+
+## Name of the node
+-sname game_server
+
+## Cookie for distributed erlang -
+#
+-setcookie local
+-s game_server
+# -s reloader
