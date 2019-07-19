@@ -14,10 +14,6 @@
 %%====================================================================
 -spec start(any(), any()) -> {ok, pid()}.
 start(_Type, _Args) ->
-    {ok, Val} = application:get_env(episcina, pools),
-    Opt = proplists:get_value(db1, Val),
-    {ok, _} = episcina:start_pool({?DB, Opt}),
-    ?LOG_INFO("init :", []),
     io:format("asdasdasdasd"),
     Dispatch = cowboy_router:compile([
         {'_', [

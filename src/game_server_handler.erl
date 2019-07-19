@@ -35,21 +35,12 @@ content_types_accepted(Req, State) ->
 content_types_provided(Req, State) ->
     {[{{<<"application/json">>}, to_json}], Req, State}.
 
-%%parse_req(<<"OPTIONS">>, _HasBody, Req) ->
-%%    Req1 = cowboy_req:set_resp_header(
-%%        <<"access-control-allow-methods">>, <<"GET, OPTIONS">>, Req),
-%%    Req2 = cowboy_req:set_resp_header(
-%%        <<"access-control-allow-origin">>, <<"*">>, Req1),
-%%    cowboy_req:reply(200, Req2);
-
 parse_req(<<"POST">>, true, Req) ->
-    ?LOG_INFO("adasd :~p", [Req]),
     {ok, PostVals, Req2} = cowboy_req:read_urlencoded_body(Req),
     [{BinJson, true}] = PostVals,
     Json = jsx:decode(BinJson, [return_maps]),
     Action = maps:get(<<"action">>, Json),
     Res = parse_command(Action, Json),
-    ?LOG_INFO("adasd :adsasdasdas", []),
     cowboy_req:reply(200, [{<<"content-type">>, <<"application/json">>}], jsx:encode(Res), Req2);
 
 parse_req(<<"POST">>, false, Req) ->
@@ -68,7 +59,8 @@ parse_command(<<"authorize">>, Json) ->
     game_server:authorize(Uid).
 
 to_json(Req, State) ->
-    Body = jsx:encode(#{<<"status">> => <<"Success">>}),
+    Body = jsx:encode(#{<<"status">> => <<"Success">>})
+    ,
     {Body, Req, State}.
 
 from_json(Req, State) ->
