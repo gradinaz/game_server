@@ -1,8 +1,6 @@
 %% @author Sergiy Vasylchuk
 -module(game_server_handler).
 
--behaviour(cowboy_handler).
-
 -export([init/2, handle/2, terminate/3]).
 -export([
     allowed_methods/2,
@@ -48,7 +46,8 @@ parse_req(<<"POST">>, false, Req) ->
     cowboy_req:reply(400, [], <<"Missing body.">>, Req);
 
 parse_req(_, _, Req) ->
-    cowboy_req:reply(200, [{<<"content-type">>, <<"application/json; charset=utf-8">>}],  jsx:encode(#{<<"z">> => <<"zzzzazz">>}), Req).
+    cowboy_req:reply(200, [{<<"content-type">>, <<"application/json; charset=utf-8">>}],
+        jsx:encode(#{<<"status">> => <<"error">>, <<"msg">> => <<"Internal error">>}), Req).
 
 parse_command(<<"/register">>, Json) ->
     Nickname = maps:get(<<"nickname">>, Json),
@@ -56,7 +55,24 @@ parse_command(<<"/register">>, Json) ->
 
 parse_command(<<"authorize">>, Json) ->
     Uid = maps:get(<<"uid">>, Json),
-    game_server:authorize(Uid).
+    game_server:authorize(Uid);
+
+parse_command(<<"gdpr_erase_profile">>, Json) ->
+    AuthToken = maps:get(<<"auth_token">>, Json),
+    game_server:gdpr_erase_profile(AuthToken);
+
+parse_command(<<"win_level">>, Json) ->
+    AuthToken = maps:get(<<"auth_token">>, Json),
+    game_server:win_level(AuthToken);
+
+parse_command(<<"buy_stars">>, Json) ->
+    AuthToken = maps:get(<<"auth_token">>, Json),
+    StarsCount = maps:get(<<"start_count">>, Json),
+    game_server:buy_stars(AuthToken, StarsCount);
+
+parse_command(<<"get_profile">>, Json) ->
+    AuthToken = maps:get(<<"auth_token">>, Json),
+    game_server:get_profile(AuthToken).
 
 to_json(Req, State) ->
     Body = jsx:encode(#{<<"status">> => <<"Success">>})

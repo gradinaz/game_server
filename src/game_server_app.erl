@@ -15,6 +15,7 @@
 -spec start(any(), any()) -> {ok, pid()}.
 start(_Type, _Args) ->
     io:format("asdasdasdasd"),
+%%    start_pools(),
     Dispatch = cowboy_router:compile([
         {'_', [
             {"/[...]", game_server_handler, []}
@@ -28,6 +29,15 @@ start(_Type, _Args) ->
 -spec stop(any()) -> ok.
 stop(_State) ->
     ok.
+
+-spec start_pools() -> {ok, pid()} | {error, term()} | ok.
+start_pools() ->
+    case application:get_env(episcina, pools) of
+        {ok, Pools} ->
+            episcina:start_pools(Pools);
+        _ ->
+            ok
+    end.
 
 
 
