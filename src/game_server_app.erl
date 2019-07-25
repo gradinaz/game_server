@@ -30,14 +30,14 @@ start(_Type, _Args) ->
 stop(_State) ->
     ok.
 
--spec start_pools() -> {ok, pid()} | {error, term()} | ok.
-start_pools() ->
-    case application:get_env(episcina, pools) of
-        {ok, Pools} ->
-            episcina:start_pools(Pools);
-        _ ->
-            ok
-    end.
+%%-spec start_pools() -> {ok, pid()} | {error, term()} | ok.
+%%start_pools() ->
+%%    case application:get_env(episcina, pools) of
+%%        {ok, Pools} ->
+%%            episcina:start_pools(Pools);
+%%        _ ->
+%%            ok
+%%    end.
 
 
 

@@ -6,9 +6,9 @@
   {modules, []},
   {applications,
    [
-    dbproxy,
     cowboy,
     eredis,
+    pgapp,
     jsx
    ]},
   {env,[]}

@@ -43,9 +43,6 @@ register(NickName) ->
     case db_get_user_by_nickname(NickName) of
         {ok, _} ->
             {error, already_exist};
-        {error, Reason} ->
-            ?LOG_ERROR("Cannot find user with reason~p", [Reason]),
-            #{<<"status">> => <<"error">>, <<"msg">> => <<"Internal error">>};
         {error, notfound} ->
             case db_save_new_user_info(NickName, ?DEFAULT_COINS, ?DEFAULT_STARS, ?DEFAULT_LEVEL) of
                 {error, Reason} ->
@@ -53,7 +50,10 @@ register(NickName) ->
                     #{<<"status">> => <<"error">>, <<"msg">> => <<"Internal error">>};
                 Id ->
                     #{<<"uid">> => integer_to_binary(Id)}
-            end
+            end;
+        {error, Reason} ->
+            ?LOG_ERROR("Cannot find user with reason~p", [Reason]),
+            #{<<"status">> => <<"error">>, <<"msg">> => <<"Internal error">>}
     end.
 
 -spec authorize(Uid :: binary()) ->  map().
@@ -82,8 +82,17 @@ get_profile(AuthToken) ->
         undefined ->
             ?LOG_ERROR("Cannot get profile for chosen user", []),
             #{<<"status">> => <<"error">>, <<"msg">> => <<"Session expired">>};
-        Profile ->
-            Profile
+        #{<<"id">> := Id} ->
+            case db_get_user_info(Id) of
+                {ok, {NickName, Coins, Stars, Level}} ->
+                     #{
+                        <<"id">> => Id,
+                        <<"nickname">> => NickName,
+                        <<"coins">> => Coins,
+                        <<"stars">> => Stars,
+                        <<"level">> => Level
+                    }
+            end
     end.
 
 -spec win_level(AuthToken::binary()) -> map().
@@ -110,12 +119,12 @@ buy_stars(AuthToken, StarsCount) ->
             #{<<"status">> => <<"error">>, <<"msg">> => <<"Session expired">>};
         #{<<"id">> := Id} ->
             NeededCoins = StarsCount * ?PRICE_FOR_1,
-            case db_update_stars(Id, NeededCoins) of
-                ok ->
-                    #{<<"status">> => <<"ok">>};
+            case db_update_stars(Id, NeededCoins, StarsCount) of
                 {error, Reason} ->
                     ?LOG_ERROR("Cannot update stars for chosen user with reason~p", [Reason]),
-                    #{<<"status">> => <<"error">>, <<"msg">> => <<"Internal error">>}
+                    #{<<"status">> => <<"error">>, <<"msg">> => <<"Internal error">>};
+                Stars ->
+                    #{<<"status">> => <<"ok">>, <<"stars">> => Stars}
             end
     end.
 
@@ -140,7 +149,7 @@ gdpr_erase_profile(AuthToken) ->
 -spec db_save_new_user_info(NickName::binary(), Coins::integer(), Stars::integer(), Level::integer()) ->
     Id::integer() | {error, Reason} when Reason::term().
 db_save_new_user_info(NickName, Coins, Stars, Level)->
-    case dbproxy:query(?DB, "INSERT INTO game_server.user_info(nickname, coins, stars, level)
+    case pgapp:equery(?DB, "INSERT INTO game_server.user_info(nickname, coins, stars, level)
                                       VALUES ($1, $2, $3, $4)
                                       RETURNING id",
         [NickName, Coins, Stars, Level]) of
@@ -152,13 +161,13 @@ db_save_new_user_info(NickName, Coins, Stars, Level)->
 
 -spec get_session_id() -> binary().
 get_session_id() ->
-    {ok, _, [{V}]} = dbproxy:query(?DB,"SELECT nextval('game_server.session_id')"),
+    {ok, _, [{V}]} = pgapp:equery(?DB, "SELECT nextval('game_server.session_id')", []),
     integer_to_binary(V).
 
 -spec db_get_user_by_nickname(NickName::binary()) -> {ok,  integer()} | {error, Reason} when
         Reason :: notfound | term().
 db_get_user_by_nickname(NickName) ->
-    case dbproxy:query(?DB, "SELECT id
+    case pgapp:equery(?DB, "SELECT id
                          FROM game_server.user_info
                          WHERE nickname = $1",
         [NickName]) of
@@ -173,7 +182,7 @@ db_get_user_by_nickname(NickName) ->
 -spec db_get_user_info(Id::integer()) -> {ok, {NickName::binary(), Coins::integer(),
         Stars::integer(), Level::integer()}} | {error, Reason} when Reason::term().
 db_get_user_info(Id) ->
-    case dbproxy:query(?DB, "SELECT nickname, coins, stars, level
+    case pgapp:equery(?DB, "SELECT nickname, coins, stars, level
                          FROM game_server.user_info
                          WHERE id = $1",
         [Id]) of
@@ -185,7 +194,7 @@ db_get_user_info(Id) ->
 
 -spec db_update_level(Id::integer()) -> ok | {error, Reason} when Reason::term().
 db_update_level(Id) ->
-    case dbproxy:query(?DB, "UPDATE game_server.user_info
+    case pgapp:equery(?DB, "UPDATE game_server.user_info
                          SET level = level + 1
                          WHERE id = $1",
         [Id]) of
@@ -195,21 +204,25 @@ db_update_level(Id) ->
             Res
     end.
 
--spec db_update_stars(Id::integer(), NeededCoins::integer()) -> ok | {error, Reason} when Reason::term().
-db_update_stars(Id, NeededCoins) ->
-    case dbproxy:query(?DB, "UPDATE game_server.user_info
-                         SET level = level + 1, coins = coins - $2
-                         WHERE id = $1 AND coins >= $2",
-        [Id, NeededCoins]) of
-        {ok, _} ->
-            ok;
+-spec db_update_stars(Id::integer(), NeededCoins::integer(), StarsCount::integer()) ->
+    Stars::integer() | {error, Reason} when Reason::term().
+db_update_stars(Id, NeededCoins, StarsCount) ->
+    case pgapp:equery(?DB, "UPDATE game_server.user_info
+                         SET stars = stars + $3, coins = coins - $2
+                         WHERE id = $1 AND coins >= $2
+                         RETURNING stars",
+        [Id, NeededCoins, StarsCount]) of
+        {ok, _, _, [{Stars}]} ->
+            Stars;
+        {ok, 0, _, []} ->
+            {error, not_enough_money};
         {error, _Reason} = Res ->
             Res
     end.
 
 -spec db_delete_profile(Id::integer()) -> ok | {error, Reason} when Reason::term().
 db_delete_profile(Id) ->
-    case dbproxy:query(?DB, "DELETE FROM game_server.user_info
+    case pgapp:equery(?DB, "DELETE FROM game_server.user_info
                          WHERE id = $1",
         [Id]) of
         {ok, _} ->
